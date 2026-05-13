@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__20f74d74-cea7-429f-8718-597f0d470c48__get_metadata",
+      "mcp__20f74d74-cea7-429f-8718-597f0d470c48__get_variable_defs",
+      "mcp__20f74d74-cea7-429f-8718-597f0d470c48__get_design_context",
+      "Bash(mkdir -p assets)",
+      "Bash(node -e ' *)",
+      "Bash(npm view *)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const v=JSON.parse\\(d\\); console.log\\(v.filter\\(x=>x.startsWith\\('18.'\\)\\).slice\\(-5\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npm install *)",
+      "mcp__20f74d74-cea7-429f-8718-597f0d470c48__get_screenshot",
+      "mcp__38176585-ff43-4f08-b7e8-7640cad98b79__figma_get_file_data",
+      "mcp__38176585-ff43-4f08-b7e8-7640cad98b79__figma_pair_plugin",
+      "mcp__38176585-ff43-4f08-b7e8-7640cad98b79__figma_execute",
+      "Bash(curl -sL \"https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/b4bbb3e8-ea0e-4145-b08e-498cee82ba00\" -o /tmp/cats.svg)",
+      "Bash(curl -sL \"https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/ae84e1c7-8c16-49ac-aef8-4be6a8647e94\" -o /tmp/discover.png)",
+      "Read(//tmp/**)",
+      "mcp__38176585-ff43-4f08-b7e8-7640cad98b79__figma_get_component_image"
+    ]
+  }
+}
