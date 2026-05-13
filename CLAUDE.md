@@ -46,7 +46,21 @@ Image URIs (Figma CDN) are in `constants/images.ts`. These expire periodically �
 ### Data
 `hooks/useApiData.ts` fetches `https://api.restful-api.dev/objects`, filters to entries with non-empty `data`, and returns the first 5. Used only in the Specification tab of the Detail screen.
 
-Product/cart data is static in `constants/products.ts`. The masonry grid uses pre-split `LEFT_PRODUCTS` / `RIGHT_PRODUCTS` arrays — left column gets `marginTop: 31` per the Figma offset.
+Product/cart data is static in `constants/products.ts`. The masonry grid uses pre-split `LEFT_PRODUCTS` / `RIGHT_PRODUCTS` arrays — left column gets `marginTop: 31` per the Figma offset. Each `Product` has a `cardHeight` field (Figma frame height in pt) that is metadata only — the actual rendered height is driven by content, not this value.
+
+`INITIAL_CART` in `constants/products.ts` is the static starting state for the Cart screen; there is no global state or context — each screen manages its own state with `useState`.
+
+### Navigation
+The Detail screen is reached via `router.push({ pathname: '/detail', params: { id, name } })`. It reads `name` from `useLocalSearchParams` to display the product title. The Cart screen is reached via `router.push('/cart')`.
+
+### Icons
+All icons are custom SVG components in `components/icons/` (using `react-native-svg`). The `lucide-react-native` package is installed but **not used** — do not reach for it when adding new icons; create a matching SVG component instead.
+
+### Figma node mapping
+Each screen's top-level comment references its Figma node ID:
+- Discover: `1:38`
+- Detail: `1:557`
+- Cart: `1:210`
 
 ### BottomTabBar
 The most complex component. Key geometry constants at the top of `components/BottomTabBar.tsx`:

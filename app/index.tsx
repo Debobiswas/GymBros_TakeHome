@@ -29,6 +29,7 @@ import Svg, { Polygon as SvgPolygon, Defs, LinearGradient as SvgGradient, Stop }
 import { CategoryPill } from '../components/CategoryPill';
 import { ProductCard } from '../components/ProductCard';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { HeroBackground, HERO_SHAPE_H } from '../components/HeroBackground';
 import { COLORS, FONT, GRADIENTS, RADIUS } from '../constants/theme';
 import { CATEGORIES, LEFT_PRODUCTS, RIGHT_PRODUCTS } from '../constants/products';
 import {
@@ -62,20 +63,33 @@ export default function DiscoverScreen() {
   }
 
   // Responsive padding so it looks correct on all iPhones
-  const sidePad = Math.max(16, width * 0.05);
-  const colGap  = 8;
-  const colW    = (width - sidePad * 2 - colGap) / 2;
-  const scale   = width / 390;
+  const sidePad  = Math.max(16, width * 0.05);
+  const colGap   = 20;   // Figma: 20pt gap between columns
+  const colW     = (width - sidePad * 2 - colGap) / 2;
+  const scale    = width / 390;
+  const cardW    = width - sidePad * 2;
+  const heroH    = HERO_SHAPE_H * (cardW / 350);
+  // Hero section scale — maps Figma's 350pt card width to actual pixels
+  const hs       = cardW / 350;
 
-  // Blue geometric accent polygon — Figma node 1:40
-  // Screen-space path (390pt baseline): M 322 149 L 393.5 208.5 L 393.5 869.5 L -20 854 L 242.5 316.5 Z
+  // Blue geometric accent polygon — Figma node 1:40 / Rectangle 474
+  // Path (SVG-local): M262.5,167.5 L342,0 L413.5,59.5 V720.5 L0,705 Z
+  // Frame offset (-20, 149) → screen-space:
+  //   (242.5,316.5) → (322,149) → (393.5,208.5) → (393.5,869.5) → (-20,854)
   const bgPolyPts = [
-    `${322 * scale},${149 * scale}`,
+    `${322   * scale},${149   * scale}`,
     `${393.5 * scale},${208.5 * scale}`,
     `${393.5 * scale},${869.5 * scale}`,
-    `${-20 * scale},${854 * scale}`,
+    `${-20   * scale},${854   * scale}`,
     `${242.5 * scale},${316.5 * scale}`,
   ].join(' ');
+  // Figma gradient (userSpaceOnUse): diagonal cyan→indigo
+  //   SVG-local (188.5, 0.5) → (392.499, 720.5)
+  //   Screen-space (frame offset −20, 149): (168.5, 149.5) → (372.5, 869.5)
+  const gradX1 = 168.5 * scale;
+  const gradY1 = 149.5 * scale;
+  const gradX2 = 372.5 * scale;
+  const gradY2 = 869.5 * scale;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -87,9 +101,14 @@ export default function DiscoverScreen() {
         pointerEvents="none"
       >
         <Defs>
-          <SvgGradient id="bgAccent" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#37b6e9" stopOpacity="1" />
-            <Stop offset="1" stopColor="#4b4ced" stopOpacity="1" />
+          <SvgGradient
+            id="bgAccent"
+            x1={gradX1} y1={gradY1}
+            x2={gradX2} y2={gradY2}
+            gradientUnits="userSpaceOnUse"
+          >
+            <Stop offset="0" stopColor="#37B6E9" stopOpacity="1" />
+            <Stop offset="1" stopColor="#4B4CED" stopOpacity="1" />
           </SvgGradient>
         </Defs>
         <SvgPolygon points={bgPolyPts} fill="url(#bgAccent)" />
@@ -123,23 +142,27 @@ export default function DiscoverScreen() {
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => router.push('/detail')}
-          style={[styles.heroCard, { width: width - sidePad * 2 }]}
+          style={[styles.heroCard, { width: cardW, height: heroH }]}
         >
-          {/* Figma-accurate flat dark gradient (no photo bg → keeps text contrast intact) */}
-          <LinearGradient
-            colors={['#353f54', '#21282f']}
-            start={{ x: 0.36, y: 0.27 }}
-            end={{ x: 0.58, y: 0.85 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          {/* Electric bike image */}
+          {/* Figma SVG background — rounded top, slanted bottom, dual shadow */}
+          <HeroBackground cardWidth={cardW} />
+          {/* Electric bike image — Figma node 1:141 at (37,166) size 316.8×153,
+              relative to Top Card frame at (20,136) → (17, 30) size 317×153.
+              Source asset is 2048×2048 square with transparent padding; use `cover`
+              so the bike fills the rect width (contain would shrink to 153×153). */}
           <Image
             source={{ uri: IMAGES.electricBike }}
-            style={styles.heroImage}
-            resizeMode="contain"
+            style={{
+              position: 'absolute',
+              top:     30 * hs,
+              left:    17 * hs,
+              width:  317 * hs,
+              height: 153 * hs,
+            }}
+            resizeMode="cover"
           />
-          {/* Promo text */}
-          <View style={styles.heroPromo}>
+          {/* Promo text — Figma node 1:142: screen y=313, shape top y=136 → 177pt from card top */}
+          <View style={{ position: 'absolute', top: 177 * hs, left: 16 * hs }}>
             <Text style={styles.heroPromoText}>30% Off</Text>
           </View>
         </TouchableOpacity>
@@ -168,31 +191,54 @@ export default function DiscoverScreen() {
         </ScrollView>
 
         {/* ── MASONRY PRODUCT GRID ───────────────────────────────────────────── */}
-        <View style={[styles.grid, { gap: colGap }]}>
-          {/* Left column — starts 31px lower per Figma */}
-          <View style={[styles.column, { width: colW, marginTop: 31 }]}>
-            {LEFT_PRODUCTS.map((product, i) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                index={i * 2}
-                column="left"
-                onPress={handleProductPress}
-              />
-            ))}
-          </View>
+        {/*
+          Rectangle 480 (node 1:82): 355×67.5pt gradient strip bridging the
+          categories section into the grid. Positioned 24.5pt above the grid
+          (at top = 31-55.5 = -24.5 in grid coords). Creates a smooth dark
+          fade that blends the background into the card tops.
+        */}
+        <View style={{ position: 'relative' }}>
+          <LinearGradient
+            colors={[COLORS.bg, 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={{
+              position: 'absolute',
+              top:      -24.5 * scale,
+              left:     0,
+              right:    0,
+              height:   67.5 * scale,
+              zIndex:   2,
+            }}
+            pointerEvents="none"
+          />
 
-          {/* Right column */}
-          <View style={[styles.column, { width: colW }]}>
-            {RIGHT_PRODUCTS.map((product, i) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                index={i * 2 + 1}
-                column="right"
-                onPress={handleProductPress}
-              />
-            ))}
+          <View style={[styles.grid, { gap: colGap }]}>
+            {/* Left column — starts 31pt lower per Figma (node 1:69 top=31) */}
+            <View style={[styles.column, { width: colW, marginTop: 31 * scale }]}>
+              {LEFT_PRODUCTS.map((product, i) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  index={i * 2}
+                  column="left"
+                  onPress={handleProductPress}
+                />
+              ))}
+            </View>
+
+            {/* Right column — starts at y=0 */}
+            <View style={[styles.column, { width: colW }]}>
+              {RIGHT_PRODUCTS.map((product, i) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  index={i * 2 + 1}
+                  column="right"
+                  onPress={handleProductPress}
+                />
+              ))}
+            </View>
           </View>
         </View>
 
@@ -264,29 +310,11 @@ const styles = StyleSheet.create({
   },
 
   // ── Hero Card ────────────────────────────────────────────────────────────────
+  // Figma: Top Card node 1:139 — 350×~237pt with electric bike + "30% Off"
+  // height is now dynamic (heroH), shadow lives in HeroBackground SVG component
   heroCard: {
-    height: 200,
-    borderRadius: RADIUS.xl,
-    overflow: 'hidden',
     marginBottom: 20,
-    backgroundColor: '#1a2235',
-    shadowColor: '#10141c',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  heroImage: {
-    position: 'absolute',
-    width: '90%',
-    height: '85%',
-    top: '5%',
-    alignSelf: 'center',
-  },
-  heroPromo: {
-    position: 'absolute',
-    bottom: 16,
-    left: 20,
+    overflow: 'visible',
   },
   heroPromoText: {
     fontFamily: FONT.bold,
@@ -312,9 +340,11 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    overflow: 'visible',
   },
   column: {
     flexDirection: 'column',
+    overflow: 'visible',
   },
 
   // ── Tab Bar ──────────────────────────────────────────────────────────────────

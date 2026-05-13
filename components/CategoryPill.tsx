@@ -59,41 +59,43 @@ export function CategoryPill({ label, icon: Icon, isActive, onPress }: CategoryP
 }
 
 const styles = StyleSheet.create({
-  // Upper glow shadow layer (Figma: rgba(43,52,69,0.5), y=-20, r=30)
+  // Upper shadow — Figma: #2b3445 @ 50%, dy=-20, stdDev=30
   pillGlow: {
     shadowColor: '#2b3445',
-    shadowOffset: { width: 0, height: -10 },
+    shadowOffset: { width: 0, height: -20 },
     shadowOpacity: 0.5,
-    shadowRadius: 18,
+    shadowRadius: 30,
     elevation: 0,
   },
+  // Active pill — Figma: 48×48, accent gradient, border 0.6 opacity, shadow below
   pill: {
-    width: 50,
-    height: 50,
+    width: 48,
+    height: 48,
     borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
-    // Figma stroke: 1pt white→black @ 60% OVERLAY — approximate with hairline white edge.
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,255,255,0.6)',
     shadowColor: '#10141c',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.65,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 1,
+    shadowRadius: 30,
+    elevation: 14,
   },
-  // Inactive pill — gradient fill matching Figma (#353f54→#222834), no flat bg color
+  // Inactive pill — Figma: 50×50, dark gradient, dual shadow (dy=+20 below, dy=-20 above)
   pillInactive: {
     width: 50,
     height: 50,
     borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     shadowColor: '#10141c',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 1,
+    shadowRadius: 30,
+    elevation: 10,
   },
   labelActive: {
     fontFamily: FONT.medium,

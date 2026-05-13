@@ -39,8 +39,19 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Polygon, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, {
+  Path,
+  Defs,
+  LinearGradient as SvgGradient,
+  Stop,
+  Filter,
+  FeGaussianBlur,
+  FeOffset,
+  FeFlood,
+  FeComposite,
+  FeMerge,
+  FeMergeNode,
+} from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -53,7 +64,7 @@ import {
   PersonIcon,
   DocIcon,
 } from './icons';
-import { COLORS, GRADIENTS } from '../constants/theme';
+import { COLORS } from '../constants/theme';
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 export type TabName = 'discover' | 'map' | 'cart' | 'profile' | 'docs';
@@ -85,17 +96,33 @@ const HOME_W      = 134;
 const HOME_PH     = 5;
 const HOME_BOTTOM = 8;
 
-// Active pill — exact Figma values from node 1:173 (Rectangle 481)
-// Path: M 0 12 L 60 0 L 60 48 L 0 60 → bounding box 60×60, cornerRadius=10
-// Skew: vertical sides → skewY, angle = atan(12/60) = 11.31°
-const PILL_H      = 60;     // Figma bounding box height
+// Active pill — exact Figma path from node 1:173 (Rectangle 481, SVG export).
+// Vertical L/R sides at x=30 and x=90 (width 60), slanted top/bottom edges
+// (top-right 8pt higher than top-left, bottom symmetrical), bezier corners ~r10.
+// The path's bounding box is x:30-90, y:10.2-65.4 within a 120×115.6 SVG canvas
+// (the extra space accommodates the drop shadow bleed).
+const PILL_H      = 60;     // Figma bounding box height (Selected Button frame)
 const PILL_W_BASE = 60;     // Figma bounding box width
-const PILL_SKEW   = '-11.3deg'; // skewY angle (negative = right side rises)
-const PILL_RADIUS = 10;     // Figma cornerRadius on Rectangle 481
 const PILL_TOP    = 0;
+const PILL_PATH =
+  'M30 28.0034C30 23.2366 33.3646 19.1324 38.0388 18.1976' +
+  'L78.0388 10.1976C84.2268 8.96001 90 13.6929 90 20.0034' +
+  'V47.6073C90 52.3741 86.6354 56.4783 81.9612 57.4131' +
+  'L41.9612 65.4131C35.7732 66.6507 30 61.9178 30 55.6073V28.0034Z';
+const PILL_SVG_W  = 120;    // SVG canvas width (includes 30pt bleed each side)
+const PILL_SVG_H  = 115.6;  // SVG canvas height (top:10pt, bottom:50pt for shadow)
+const PILL_PATH_X = 30;     // path's left x in viewBox
+const PILL_PATH_Y = 10;     // path's top y in viewBox
 
-// Slanted background geometry — Figma node 1:147: M 0 20 L 390 0 L 390 103.5 L 0 103.5 Z
-const SLANT_DEPTH = 20;
+// Slanted background — Figma node 1:147 / Rectangle 24 (SVG export):
+//   M0 20 L390 0 V53.5 C390 81.1142 367.614 103.5 340 103.5
+//   H50  C22.3858 103.5 0 81.1142 0 53.5 V20 Z
+// Rounded bottom corners (radius 50), slanted top edge (top-right 20pt higher).
+const TAB_PATH =
+  'M0 20L390 0V53.5C390 81.1142 367.614 103.5 340 103.5' +
+  'H50C22.3858 103.5 0 81.1142 0 53.5V20Z';
+const TAB_DESIGN_W = 390;
+const TAB_DESIGN_H = 103.5;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 interface Props {
@@ -135,49 +162,53 @@ export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Prop
     transform: [{ translateX: pilTranslateX.value }],
   }));
 
-  // ── SVG polygon points for the slanted background ──────────────────────────
-  // Figma exact path: M 0 20 L 390 0 L 390 103.5 L 0 103.5 Z (full-width diagonal)
   const barH = BAR_TOTAL * scale;
-  const pts = [
-    `0,${SLANT_DEPTH * scale}`,
-    `${width},0`,
-    `${width},${barH}`,
-    `0,${barH}`,
-  ].join(' ');
-  const borderPts = [
-    `1,${SLANT_DEPTH * scale + 1}`,
-    `${width - 1},1`,
-    `${width - 1},${barH}`,
-    `1,${barH}`,
-  ].join(' ');
 
   return (
     <View style={[{ height: BAR_TOTAL * scale, width }, styles.outer, style]}>
 
-      {/* ── Slanted polygon background ──────────────────────────────────── */}
+      {/* ── Slanted, bottom-rounded background (Figma exact path) ────────── */}
       <Svg
         width={width}
         height={barH}
+        viewBox={`0 0 ${TAB_DESIGN_W} ${TAB_DESIGN_H}`}
+        preserveAspectRatio="none"
         style={StyleSheet.absoluteFillObject}
       >
         <Defs>
-          <SvgGradient id="tabBg" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#363e51" stopOpacity="1" />
-            <Stop offset="1" stopColor="#181c24" stopOpacity="1" />
+          {/* paint0_linear_6020_88 — vertical fill: #363E51 → #181C24
+              Gradient handle in viewBox coords: (195,-5) → (195,121) */}
+          <SvgGradient
+            id="tabBg"
+            x1="195" y1="-5"
+            x2="195" y2="121"
+            gradientUnits="userSpaceOnUse"
+          >
+            <Stop offset="0" stopColor="#363E51" stopOpacity={1} />
+            <Stop offset="1" stopColor="#181C24" stopOpacity={1} />
+          </SvgGradient>
+          {/* paint1_linear_6020_88 — border: white → transparent (upper highlight) */}
+          <SvgGradient
+            id="tabBorder"
+            x1="192.5" y1="-3.5"
+            x2="191"   y2="41.5"
+            gradientUnits="userSpaceOnUse"
+          >
+            <Stop offset="0" stopColor="#ffffff" stopOpacity={1} />
+            <Stop offset="1" stopColor="#ffffff" stopOpacity={0} />
           </SvgGradient>
         </Defs>
-        <Polygon points={pts} fill="url(#tabBg)" />
-        {/* Figma stroke: 2pt white→transparent linear gradient @ 20% opacity, OVERLAY blend.
-            RN can't replicate OVERLAY exactly; approximate with a single flat hairline at the upper edge tint. */}
-        <Polygon
-          points={borderPts}
+        <Path d={TAB_PATH} fill="url(#tabBg)" />
+        <Path
+          d={TAB_PATH}
           fill="none"
-          stroke="rgba(255,255,255,0.16)"
-          strokeWidth="1.5"
+          stroke="url(#tabBorder)"
+          strokeOpacity={0.2}
+          strokeWidth={2}
         />
       </Svg>
 
-      {/* ── Animated parallelogram active pill ─────────────────────────── */}
+      {/* ── Animated active pill — SVG path with real parallelogram geometry ─ */}
       <Animated.View
         style={[
           styles.pillTrack,
@@ -186,40 +217,69 @@ export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Prop
         ]}
         pointerEvents="none"
       >
-        {/*  1 — Dark drop shadow layer (matches Figma: rgba(16,20,28,0.6), y=20, r=30) */}
-        <View
-          style={[
-            styles.pillShadow,
-            {
-              width:  pillW,
-              height: pillH,
-              borderRadius: PILL_RADIUS * scale,
-              transform: [{ skewY: PILL_SKEW }],
-            },
-          ]}
-        />
+        {/* SVG canvas is bigger than the pill (shadow bleed) and offset so the
+            path content (viewBox 30..90 × 10..65.4) aligns with the pill frame. */}
+        <Svg
+          width={PILL_SVG_W * scale}
+          height={PILL_SVG_H * scale}
+          viewBox={`0 0 ${PILL_SVG_W} ${PILL_SVG_H}`}
+          style={{
+            position: 'absolute',
+            left: -PILL_PATH_X * scale,
+            top:  -PILL_PATH_Y * scale,
+          }}
+        >
+          <Defs>
+            {/* Figma paint0_linear_6020_75 — fill gradient (cyan → indigo diagonal) */}
+            <SvgGradient
+              id="pillFill"
+              x1="33"    y1="7.80536"
+              x2="74.79" y2="88.85"
+              gradientUnits="userSpaceOnUse"
+            >
+              <Stop offset="0" stopColor="#34C8E8" />
+              <Stop offset="1" stopColor="#4E4AF2" />
+            </SvgGradient>
+            {/* Figma paint1_linear_6020_75 — border highlight (white → black overlay) */}
+            <SvgGradient
+              id="pillBorder"
+              x1="30"    y1="7.80536"
+              x2="64.08" y2="80.04"
+              gradientUnits="userSpaceOnUse"
+            >
+              <Stop offset="0" stopColor="#ffffff" stopOpacity={1} />
+              <Stop offset="1" stopColor="#000000" stopOpacity={1} />
+            </SvgGradient>
+            {/* Figma filter0_d_6020_75 — drop shadow: dy=20, blur=15, #10141C @60% */}
+            <Filter
+              id="pillShadow"
+              x="-25%" y="-25%" width="150%" height="160%"
+            >
+              <FeGaussianBlur in="SourceAlpha" stdDeviation="15" result="b" />
+              <FeOffset in="b" dx="0" dy="20" result="o" />
+              <FeFlood floodColor="#10141C" floodOpacity="0.6" result="c" />
+              <FeComposite in="c" in2="o" operator="in" result="s" />
+              <FeMerge>
+                <FeMergeNode in="s" />
+                <FeMergeNode in="SourceGraphic" />
+              </FeMerge>
+            </Filter>
+          </Defs>
 
-        {/*  2 — Parallelogram gradient (skewY = vertical sides, slanted top/bottom).
-              Figma gradient handles: start (0.05, 0) → end (1.0, 1.22), cyan→indigo.
-              Border simulates Figma's 1pt white→black overlay stroke (white edge visible top-left). */}
-        <View style={[styles.pillSkewWrap, { transform: [{ skewY: PILL_SKEW }] }]}>
-          <LinearGradient
-            colors={GRADIENTS.accent}
-            start={{ x: 0.05, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[
-              styles.pillGradient,
-              {
-                width: pillW,
-                height: pillH,
-                borderRadius: PILL_RADIUS * scale,
-              },
-            ]}
+          <Path
+            d={PILL_PATH}
+            fill="url(#pillFill)"
+            filter="url(#pillShadow)"
+            stroke="url(#pillBorder)"
+            strokeOpacity={0.6}
+            strokeWidth={1}
           />
-        </View>
+        </Svg>
 
-        {/*  3 — Icon overlay, NOT skewed, centered in the pill bounding box */}
-        <View style={[styles.pillIconLayer, { width: pillW, height: pillH }]}>
+        {/* Icon overlay — unrotated, centered on the pill's visual centroid.
+            Path centroid in viewBox = ((30+90)/2, (18+57.4)/2) ≈ (60, 37.8).
+            Within the pill frame that's (30, 27.8) → close to center, slight up shift. */}
+        <View style={[styles.pillIconLayer, { width: pillW, height: pillH, top: -2 * scale }]}>
           <ActiveIcon size={activeSz} color={COLORS.white} />
         </View>
       </Animated.View>
@@ -272,34 +332,6 @@ const styles = StyleSheet.create({
 
   pillTrack: {
     position: 'absolute',
-  },
-
-  // Dark drop shadow — Figma: rgba(16,20,28,0.6), offset y=20, radius=30
-  pillShadow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    // Near-transparent bg is required for iOS shadow to render
-    backgroundColor: 'rgba(52, 200, 232, 0.01)',
-    shadowColor: '#10141C',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 18,
-  },
-
-  // Skewed gradient — no overflow:hidden so skewY bleeds correctly
-  pillSkewWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
-
-  pillGradient: {
-    // Figma stroke: 1pt white→black @ 60% opacity, OVERLAY blend.
-    // Approximate as a hairline white at low alpha — the highlight edge of the gradient.
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
   },
 
   pillIconLayer: {
