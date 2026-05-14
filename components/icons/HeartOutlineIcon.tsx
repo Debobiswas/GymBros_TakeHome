@@ -4,7 +4,7 @@ import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 interface Props { size?: number; variant?: 'gradient' | 'white' }
 
 // Figma: heart / 24 / Outline — node 1:79/1:80
-// Left card: blue gradient fill. Right card: solid white fill.
+// Left column: blue gradient fill. Right column: solid white fill on glass cards.
 export function HeartOutlineIcon({ size = 24, variant = 'gradient' }: Props) {
   const h = size * (17.73768 / 19.994915);
   return (

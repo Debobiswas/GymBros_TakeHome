@@ -37,7 +37,8 @@ import type { Product } from '../types';
 //      imgPadH   = 10
 //      textZone  = 84
 //
-//  Figma Items 1:67 — top-left card: gradient heart + opaque fill; other cards: white heart + glass fill.
+//  Figma Items 1:67 — top-left card: opaque fill; glass fill on other cards. Hearts: all
+//  left-column cards use the blue gradient heart; right column uses white on glass cards.
 //
 //  CardBackground SVG viewBox is 245pt wide; the path spans x=20–185 (165pt). The canvas
 //  is centered in the column with `left: -40·s`, so the drawable sits ~20·s left of the
@@ -84,7 +85,7 @@ interface ProductCardProps {
   product: Product;
   index: number;
   column?: 'left' | 'right';
-  /** 0-based index down the column; only affects left-column fill + heart (first row opaque). */
+  /** 0-based index down the column; only affects left-column opaque vs glass fill (first row opaque). */
   rowInColumn?: number;
   /** Same as Discover content `cardW` / grid `bandWidth` — drives column width. */
   bandWidth: number;
@@ -152,7 +153,7 @@ export function ProductCard({
   const isTopLeftOpaque =
     column === 'left' && (rowInColumn ?? 0) === 0;
   const cardFillStyle: 'opaque' | 'glass' = isTopLeftOpaque ? 'opaque' : 'glass';
-  const heartVariant = isTopLeftOpaque ? 'gradient' : 'white';
+  const heartVariant = column === 'left' ? 'gradient' : 'white';
 
   return (
     <Animated.View style={[animStyle, { height: cardH, marginBottom: 0, overflow: 'visible' }]}>
