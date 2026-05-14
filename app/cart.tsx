@@ -1,7 +1,7 @@
 /**
  * Shopping Cart Screen
  *
- * Layout mirrors Figma node 1:210:
+ * Layout mirrors Figma node 1:210 (list) / 1:236 (header & row rhythm):
  *   • Cart items list with +/- quantity controls
  *   • Free-shipping banner
  *   • Coupon input + animated "Apply" button
@@ -24,10 +24,11 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -35,12 +36,36 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { CheckoutSlider } from '../components/CheckoutSlider';
+import { InsetDepthOverlays } from '../components/InsetDepthOverlays';
+import { MinusIcon, PlusIcon } from '../components/icons';
 import { COLORS, FONT, GRADIENTS, RADIUS } from '../constants/theme';
 import { INITIAL_CART } from '../constants/products';
-import { IMAGES } from '../constants/images';
 import type { CartItem } from '../types';
 
+/** Coupon row @ 390pt — Apply control width ≈ 3× the “Apply” label width (Figma 1:210). */
+const COUPON_ROW_HEIGHT_PT = 44;
+const APPLY_BTN_WIDTH_PT = 120;
+
 export default function CartScreen() {
+  const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const scale = winW / 390;
+  const couponH = COUPON_ROW_HEIGHT_PT * scale;
+  const applyW = APPLY_BTN_WIDTH_PT * scale;
+  const couponInputRadii = {
+    borderTopLeftRadius:    RADIUS.md,
+    borderBottomLeftRadius: RADIUS.md,
+    borderTopRightRadius:    0,
+    borderBottomRightRadius: 0,
+  } as const;
+  /** Full pill on Apply; overlaps input by `RADIUS.md` so the left curve sits flush on the field. */
+  const applyBtnRadii = {
+    borderTopLeftRadius:     RADIUS.md,
+    borderBottomLeftRadius:  RADIUS.md,
+    borderTopRightRadius:    RADIUS.md,
+    borderBottomRightRadius: RADIUS.md,
+  } as const;
+  const applyOverlap = RADIUS.md * scale;
   const [items, setItems]     = useState<CartItem[]>(INITIAL_CART);
   const [coupon, setCoupon]   = useState('Bike30');
   const [discApplied, setDisc] = useState(true);
@@ -72,18 +97,25 @@ export default function CartScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
+    <View style={[styles.safe, { paddingTop: insets.top }]}>
+      {/* ── Header — Figma ~1:236: tight under status / notch ─────────────── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.85}>
-          <LinearGradient
-            colors={GRADIENTS.accent}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.backBtn}
-          >
+          <View style={styles.backBtnShell}>
+            <View style={styles.backBtnClip}>
+              <LinearGradient
+                colors={GRADIENTS.accent}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+            </View>
+            <View
+              style={[styles.backBtnHairline, { borderRadius: RADIUS.md }]}
+              pointerEvents="none"
+            />
             <Text style={styles.backChevron}>‹</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Shopping Cart</Text>
       </View>
@@ -108,24 +140,45 @@ export default function CartScreen() {
 
         {/* ── Coupon input ──────────────────────────────────────────────────── */}
         <View style={styles.couponRow}>
-          <View style={styles.couponInput}>
+          <View
+            style={[
+              styles.couponInput,
+              couponInputRadii,
+              {
+                height: couponH,
+                paddingLeft: 12 * scale,
+                paddingRight: (12 + RADIUS.md) * scale,
+              },
+            ]}
+          >
+            <InsetDepthOverlays style={couponInputRadii} />
             <TextInput
               value={coupon}
               onChangeText={setCoupon}
-              style={styles.couponText}
+              style={[styles.couponText, { fontSize: 13 * scale, zIndex: 1 }]}
               placeholderTextColor={COLORS.textLo}
               placeholder="Coupon code"
             />
           </View>
           <GestureDetector gesture={applyTap}>
-            <Animated.View style={applyStyle}>
-              <LinearGradient
-                colors={GRADIENTS.accent}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.applyBtn}
+            <Animated.View style={[applyStyle, { zIndex: 1 }]}>
+              <View
+                style={[
+                  styles.applyBtnShell,
+                  applyBtnRadii,
+                  { height: couponH, width: applyW, marginLeft: -applyOverlap },
+                ]}
               >
+                <View style={[styles.applyBtnClip, applyBtnRadii]}>
+                  <LinearGradient
+                    colors={GRADIENTS.accent}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                </View>
                 <TouchableOpacity
+                  style={styles.applyBtnHit}
                   activeOpacity={1}
                   onPress={() => {
                     setDisc(coupon.toLowerCase() === 'bike30');
@@ -134,9 +187,13 @@ export default function CartScreen() {
                     }
                   }}
                 >
-                  <Text style={styles.applyLabel}>Apply</Text>
+                  <Text style={[styles.applyLabel, { fontSize: 13 * scale }]}>Apply</Text>
                 </TouchableOpacity>
-              </LinearGradient>
+                <View
+                  style={[styles.applyBtnHairline, applyBtnRadii]}
+                  pointerEvents="none"
+                />
+              </View>
             </Animated.View>
           </GestureDetector>
         </View>
@@ -163,13 +220,12 @@ export default function CartScreen() {
       </ScrollView>
 
       {/* ── Checkout slider (fixed bottom) ─────────────────────────────────── */}
-      <View style={styles.checkoutContainer}>
+      <View style={[styles.checkoutContainer, { paddingBottom: 12 + insets.bottom }]}>
         <CheckoutSlider
           onConfirm={() => Alert.alert('Order placed!', 'Thank you for your purchase.')}
         />
-        <View style={styles.homeIndicator} />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -185,9 +241,9 @@ function CartRow({ item, onChangeQty }: CartRowProps) {
       {/* Product thumbnail */}
       <View style={rowStyles.imageBox}>
         <LinearGradient
-          colors={['#363e51', '#4c5770']}
-          start={{ x: 0.15, y: 0.1 }}
-          end={{ x: 0.85, y: 0.9 }}
+          colors={[...GRADIENTS.cartThumb]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={rowStyles.imageGradient}
         >
           <Image
@@ -229,21 +285,26 @@ function QtyControl({ qty, onMinus, onPlus }: QtyControlProps) {
     <View style={qtyStyles.container}>
       {/* Minus */}
       <TouchableOpacity style={qtyStyles.minusBtn} onPress={onMinus} activeOpacity={0.8}>
-        <Image source={{ uri: IMAGES.minusIcon }} style={qtyStyles.btnIcon} resizeMode="contain" />
+        <MinusIcon size={12} color={COLORS.white} strokeWidth={1.4} />
       </TouchableOpacity>
 
       <Text style={qtyStyles.qty}>{qty}</Text>
 
       {/* Plus */}
       <TouchableOpacity onPress={onPlus} activeOpacity={0.85}>
-        <LinearGradient
-          colors={GRADIENTS.accent}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={qtyStyles.plusBtn}
-        >
-          <Image source={{ uri: IMAGES.plusIcon }} style={qtyStyles.btnIcon} resizeMode="contain" />
-        </LinearGradient>
+        <View style={qtyStyles.plusShell}>
+          <View style={qtyStyles.plusClip}>
+            <LinearGradient
+              colors={GRADIENTS.accent}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </View>
+          <View style={qtyStyles.plusIconLayer}>
+            <PlusIcon size={12} color={COLORS.white} strokeWidth={1.4} />
+          </View>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -259,29 +320,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingTop: 2,
+    paddingBottom: 8,
     gap: 16,
   },
-  backBtn: {
-    width: 44,
-    height: 44,
+  backBtnShell: {
+    position:       'relative',
+    width:          44,
+    height:         44,
+    borderRadius:   RADIUS.md,
+    shadowColor:    '#10141c',
+    shadowOffset:   { width: 0, height: 20 },
+    shadowOpacity:  0.6,
+    shadowRadius:   30,
+    elevation:      10,
+    overflow:       'visible',
+  },
+  backBtnClip: {
+    ...StyleSheet.absoluteFillObject,
     borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Figma stroke: 1pt white→black @ 60% OVERLAY — hairline white at ~35% alpha
+    overflow:     'hidden',
+  },
+  backBtnHairline: {
+    ...StyleSheet.absoluteFillObject,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
-    shadowColor: '#10141c',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 10,
   },
   backChevron: {
-    fontSize: 26,
-    color: COLORS.white,
-    lineHeight: 28,
-    marginTop: -2,
+    position:       'absolute',
+    left:           0,
+    right:          0,
+    top:            0,
+    bottom:         0,
+    textAlign:      'center',
+    textAlignVertical: 'center',
+    fontSize:       26,
+    color:          COLORS.white,
+    lineHeight:     44,
   },
   headerTitle: {
     fontFamily: FONT.bold,
@@ -296,7 +371,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     marginHorizontal: 20,
   },
 
@@ -311,49 +386,47 @@ const styles = StyleSheet.create({
 
   couponRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     marginHorizontal: 20,
     marginBottom: 20,
-    gap: 8,
   },
   couponInput: {
     flex: 1,
-    height: 44,
-    backgroundColor: '#1a1f29',
-    borderRadius: RADIUS.sm,
+    position: 'relative',
+    backgroundColor: COLORS.insetWell,
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    // Neumorphic inset
-    shadowColor: '#11161e',
-    shadowOffset: { width: 2, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 3,
+    overflow: 'hidden',
   },
   couponText: {
     fontFamily: FONT.regular,
-    fontSize: 13,
     color: COLORS.textLo,
     letterSpacing: -0.08,
   },
-  applyBtn: {
-    height: 44,
-    paddingHorizontal: 20,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
+  applyBtnShell: {
+    position:       'relative',
+    shadowColor:    '#10141c',
+    shadowOffset:   { width: 0, height: 20 },
+    shadowOpacity:  0.6,
+    shadowRadius:   30,
+    elevation:      8,
+    overflow:       'visible',
+  },
+  applyBtnClip: {
+    ...StyleSheet.absoluteFillObject,
+    overflow:     'hidden',
+  },
+  applyBtnHit: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
-    // Match Figma's overlay gradient stroke (white→black @ 60%) — hairline white
+    alignItems:     'center',
+  },
+  applyBtnHairline: {
+    ...StyleSheet.absoluteFillObject,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
-    shadowColor: '#10141c',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 8,
   },
   applyLabel: {
     fontFamily: FONT.bold,
-    fontSize: 13,
     color: COLORS.white,
     letterSpacing: -0.08,
   },
@@ -403,19 +476,10 @@ const styles = StyleSheet.create({
 
   checkoutContainer: {
     paddingTop: 12,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
     backgroundColor: COLORS.bg,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.07)',
-  },
-  homeIndicator: {
-    width: 134,
-    height: 5,
-    borderRadius: 100,
-    backgroundColor: COLORS.white,
-    alignSelf: 'center',
-    marginTop: 12,
-    opacity: 0.25,
   },
 });
 
@@ -428,27 +492,25 @@ const rowStyles = StyleSheet.create({
     gap: 16,
   },
   imageBox: {
-    width: 100,
-    height: 90,
-    borderRadius: RADIUS.md,
+    width: 104,
+    height: 104,
+    borderRadius: RADIUS.xl,
     overflow: 'hidden',
   },
   imageGradient: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.xl,
   },
   productImage: {
-    width: 80,
-    height: 70,
+    width: 100,
+    height: 100,
   },
   info: {
     flex: 1,
     justifyContent: 'space-between',
-    height: 77,
+    minHeight: 104,
   },
   name: {
     fontFamily: FONT.bold,
@@ -489,25 +551,36 @@ const qtyStyles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 5,
-    backgroundColor: '#353f54',
+    backgroundColor: COLORS.sheetTop,
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  plusBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.3)',
+  plusShell: {
+    position:       'relative',
+    width:          24,
+    height:         24,
+    borderRadius:   5,
+    shadowColor:    '#10141c',
+    shadowOffset:   { width: 0, height: 12 },
+    shadowOpacity:  0.55,
+    shadowRadius:   14,
+    elevation:      8,
+    overflow:       'visible',
   },
-  btnIcon: {
-    width: 14,
-    height: 14,
-    tintColor: COLORS.white,
+  plusClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 5,
+    overflow:     'hidden',
+  },
+  plusIconLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems:     'center',
+    justifyContent: 'center',
+    borderWidth:    0.5,
+    borderColor:    'rgba(255,255,255,0.3)',
+    borderRadius:   5,
   },
   qty: {
     fontFamily: FONT.semibold,

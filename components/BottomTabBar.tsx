@@ -23,15 +23,17 @@
  *    Drop shadow    rgba(16, 20, 28, 0.6)  y=20  radius=30  (dark, NOT cyan)
  *    Corner radius  0  (sharp corners — vector path has no curves)
  *
- *  Background (Rectangle 24, 1:147):
- *    Vector polygon with slanted top-left notch.
+ *  Background sheet:
+ *    Original slanted top + right vertical to y=53.5; flat bottom y=103.5 (no rounding).
+ *    Solid fill COLORS.bg. Parent views stay transparent behind the top wedge so the
+ *    diagonal reveals scroll content; only the home-indicator strip uses opaque COLORS.bg.
  *
  *  Tab slot geometry:
  *    5 tabs × 75 pt each in a 390 pt frame.
- *    Tabs frame: 390 × 49.  HomeIndicator frame: 375 × 34.
+ *    Tabs frame: 390 × 49.
  * ═══════════════════════════════════════════════════════════════
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -39,18 +41,14 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, {
   Path,
   Defs,
+  Mask,
+  Rect,
   LinearGradient as SvgGradient,
   Stop,
-  Filter,
-  FeGaussianBlur,
-  FeOffset,
-  FeFlood,
-  FeComposite,
-  FeMerge,
-  FeMergeNode,
 } from 'react-native-svg';
 import Animated, {
   useSharedValue,
@@ -64,7 +62,7 @@ import {
   PersonIcon,
   DocIcon,
 } from './icons';
-import { COLORS } from '../constants/theme';
+import { COLORS, TAB_BAR_FRAME_HEIGHT_PT } from '../constants/theme';
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 export type TabName = 'discover' | 'map' | 'cart' | 'profile' | 'docs';
@@ -88,13 +86,9 @@ const TABS: TabDef[] = [
 
 // ── Figma constants (design baseline = 390 pt wide) ─────────────────────────
 const DESIGN_W    = 390;
-const BAR_TOTAL   = 103.5;  // full frame height
+const BAR_TOTAL   = TAB_BAR_FRAME_HEIGHT_PT;
 const ICONS_TOP   = 20.5;   // y-offset to icons row (Tab Bar frame → Tabs frame)
 const ICONS_H     = 49;     // Tabs frame height
-const HOME_H      = 34;
-const HOME_W      = 134;
-const HOME_PH     = 5;
-const HOME_BOTTOM = 8;
 
 // Active pill — exact Figma path from node 1:173 (Rectangle 481, SVG export).
 // Vertical L/R sides at x=30 and x=90 (width 60), slanted top/bottom edges
@@ -114,15 +108,15 @@ const PILL_SVG_H  = 115.6;  // SVG canvas height (top:10pt, bottom:50pt for shad
 const PILL_PATH_X = 30;     // path's left x in viewBox
 const PILL_PATH_Y = 10;     // path's top y in viewBox
 
-// Slanted background — Figma node 1:147 / Rectangle 24 (SVG export):
-//   M0 20 L390 0 V53.5 C390 81.1142 367.614 103.5 340 103.5
-//   H50  C22.3858 103.5 0 81.1142 0 53.5 V20 Z
-// Rounded bottom corners (radius 50), slanted top edge (top-right 20pt higher).
-const TAB_PATH =
-  'M0 20L390 0V53.5C390 81.1142 367.614 103.5 340 103.5' +
-  'H50C22.3858 103.5 0 81.1142 0 53.5V20Z';
 const TAB_DESIGN_W = 390;
 const TAB_DESIGN_H = 103.5;
+/** Original Figma top: slant (0,20)→(390,0), then vertical to y=53.5 before the old bottom curves. */
+const TAB_TOP_DROP_Y = 53.5;
+// Clear the wedge above the slanted top so scroll content shows through (Figma).
+const TAB_TOP_CLEAR_WEDGE = 'M0 0L390 0L0 20Z';
+// Same upper profile as original TAB_PATH; flat bottom y=TAB_DESIGN_H (no corner radius).
+const TAB_PATH =
+  `M0 20 L390 0 V${TAB_TOP_DROP_Y} L390 ${TAB_DESIGN_H} L0 ${TAB_DESIGN_H} V20 Z`;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 interface Props {
@@ -133,6 +127,8 @@ interface Props {
 
 export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Props) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const tabTopClearMaskId = useId().replace(/:/g, '_');
 
   const scale  = width / DESIGN_W;
   const slotW  = width / TABS.length;
@@ -163,12 +159,27 @@ export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Prop
   }));
 
   const barH = BAR_TOTAL * scale;
+  const layoutH = barH + insets.bottom;
 
   return (
-    <View style={[{ height: BAR_TOTAL * scale, width }, styles.outer, style]}>
-
-      {/* ── Slanted, bottom-rounded background (Figma exact path) ────────── */}
+    <View
+      pointerEvents="box-none"
+      style={[
+        {
+          height: layoutH,
+          width,
+        },
+        styles.outer,
+        style,
+      ]}
+    >
+      <View
+        pointerEvents="box-none"
+        style={[styles.barInner, { height: barH, width }]}
+      >
+      {/* ── Sheet: slanted top, flat bottom, solid app bg (matches system nav) ─ */}
       <Svg
+        pointerEvents="none"
         width={width}
         height={barH}
         viewBox={`0 0 ${TAB_DESIGN_W} ${TAB_DESIGN_H}`}
@@ -176,36 +187,12 @@ export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Prop
         style={StyleSheet.absoluteFillObject}
       >
         <Defs>
-          {/* paint0_linear_6020_88 — vertical fill: #363E51 → #181C24
-              Gradient handle in viewBox coords: (195,-5) → (195,121) */}
-          <SvgGradient
-            id="tabBg"
-            x1="195" y1="-5"
-            x2="195" y2="121"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor="#363E51" stopOpacity={1} />
-            <Stop offset="1" stopColor="#181C24" stopOpacity={1} />
-          </SvgGradient>
-          {/* paint1_linear_6020_88 — border: white → transparent (upper highlight) */}
-          <SvgGradient
-            id="tabBorder"
-            x1="192.5" y1="-3.5"
-            x2="191"   y2="41.5"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor="#ffffff" stopOpacity={1} />
-            <Stop offset="1" stopColor="#ffffff" stopOpacity={0} />
-          </SvgGradient>
+          <Mask id={tabTopClearMaskId} maskUnits="userSpaceOnUse">
+            <Rect x="0" y="0" width={TAB_DESIGN_W} height={TAB_DESIGN_H} fill="#FFFFFF" />
+            <Path d={TAB_TOP_CLEAR_WEDGE} fill="#000000" />
+          </Mask>
         </Defs>
-        <Path d={TAB_PATH} fill="url(#tabBg)" />
-        <Path
-          d={TAB_PATH}
-          fill="none"
-          stroke="url(#tabBorder)"
-          strokeOpacity={0.2}
-          strokeWidth={2}
-        />
+        <Path d={TAB_PATH} fill={COLORS.bg} mask={`url(#${tabTopClearMaskId})`} />
       </Svg>
 
       {/* ── Animated active pill — SVG path with real parallelogram geometry ─ */}
@@ -217,64 +204,56 @@ export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Prop
         ]}
         pointerEvents="none"
       >
-        {/* SVG canvas is bigger than the pill (shadow bleed) and offset so the
-            path content (viewBox 30..90 × 10..65.4) aligns with the pill frame. */}
-        <Svg
-          width={PILL_SVG_W * scale}
-          height={PILL_SVG_H * scale}
-          viewBox={`0 0 ${PILL_SVG_W} ${PILL_SVG_H}`}
+        {/* Native shadow (SVG Fe* filters are not supported on iOS/Android — see Metro warn). */}
+        <View
           style={{
             position: 'absolute',
-            left: -PILL_PATH_X * scale,
-            top:  -PILL_PATH_Y * scale,
+            left:     -PILL_PATH_X * scale,
+            top:      -PILL_PATH_Y * scale,
+            width:    PILL_SVG_W * scale,
+            height:   PILL_SVG_H * scale,
+            shadowColor:     '#10141c',
+            shadowOffset:    { width: 0, height: 20 * scale },
+            shadowOpacity:   0.6,
+            shadowRadius:    15 * scale,
+            elevation:       12,
           }}
         >
-          <Defs>
-            {/* Figma paint0_linear_6020_75 — fill gradient (cyan → indigo diagonal) */}
-            <SvgGradient
-              id="pillFill"
-              x1="33"    y1="7.80536"
-              x2="74.79" y2="88.85"
-              gradientUnits="userSpaceOnUse"
-            >
-              <Stop offset="0" stopColor="#34C8E8" />
-              <Stop offset="1" stopColor="#4E4AF2" />
-            </SvgGradient>
-            {/* Figma paint1_linear_6020_75 — border highlight (white → black overlay) */}
-            <SvgGradient
-              id="pillBorder"
-              x1="30"    y1="7.80536"
-              x2="64.08" y2="80.04"
-              gradientUnits="userSpaceOnUse"
-            >
-              <Stop offset="0" stopColor="#ffffff" stopOpacity={1} />
-              <Stop offset="1" stopColor="#000000" stopOpacity={1} />
-            </SvgGradient>
-            {/* Figma filter0_d_6020_75 — drop shadow: dy=20, blur=15, #10141C @60% */}
-            <Filter
-              id="pillShadow"
-              x="-25%" y="-25%" width="150%" height="160%"
-            >
-              <FeGaussianBlur in="SourceAlpha" stdDeviation="15" result="b" />
-              <FeOffset in="b" dx="0" dy="20" result="o" />
-              <FeFlood floodColor="#10141C" floodOpacity="0.6" result="c" />
-              <FeComposite in="c" in2="o" operator="in" result="s" />
-              <FeMerge>
-                <FeMergeNode in="s" />
-                <FeMergeNode in="SourceGraphic" />
-              </FeMerge>
-            </Filter>
-          </Defs>
+          <Svg
+            width={PILL_SVG_W * scale}
+            height={PILL_SVG_H * scale}
+            viewBox={`0 0 ${PILL_SVG_W} ${PILL_SVG_H}`}
+          >
+            <Defs>
+              <SvgGradient
+                id="pillFill"
+                x1="33"    y1="7.80536"
+                x2="74.79" y2="88.85"
+                gradientUnits="userSpaceOnUse"
+              >
+                <Stop offset="0" stopColor="#34C8E8" />
+                <Stop offset="1" stopColor="#4E4AF2" />
+              </SvgGradient>
+              <SvgGradient
+                id="pillBorder"
+                x1="30"    y1="7.80536"
+                x2="64.08" y2="80.04"
+                gradientUnits="userSpaceOnUse"
+              >
+                <Stop offset="0" stopColor="#ffffff" stopOpacity={1} />
+                <Stop offset="1" stopColor="#000000" stopOpacity={1} />
+              </SvgGradient>
+            </Defs>
 
-          <Path
-            d={PILL_PATH}
-            fill="url(#pillFill)"
-            filter="url(#pillShadow)"
-            stroke="url(#pillBorder)"
-            strokeOpacity={0.6}
-            strokeWidth={1}
-          />
-        </Svg>
+            <Path
+              d={PILL_PATH}
+              fill="url(#pillFill)"
+              stroke="url(#pillBorder)"
+              strokeOpacity={0.6}
+              strokeWidth={1}
+            />
+          </Svg>
+        </View>
 
         {/* Icon overlay — unrotated, centered on the pill's visual centroid.
             Path centroid in viewBox = ((30+90)/2, (18+57.4)/2) ≈ (60, 37.8).
@@ -310,16 +289,16 @@ export function BottomTabBar({ activeTab = 'discover', onTabPress, style }: Prop
           );
         })}
       </View>
-
-      {/* ── Home indicator ──────────────────────────────────────────────── */}
-      <View
-        style={[
-          styles.homeArea,
-          { bottom: 0, height: HOME_H * scale, paddingBottom: HOME_BOTTOM * scale },
-        ]}
-      >
-        <View style={[styles.homeBar, { width: HOME_W * scale, height: HOME_PH * scale }]} />
       </View>
+
+      {/* Home-indicator strip only — keep opaque so it matches system nav; don’t paint
+          behind the top wedge or the diagonal reads as a flat bar. */}
+      {insets.bottom > 0 ? (
+        <View
+          pointerEvents="none"
+          style={{ height: insets.bottom, width, backgroundColor: COLORS.bg }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -330,8 +309,14 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
 
+  barInner: {
+    position: 'relative',
+    overflow: 'visible',
+  },
+
   pillTrack: {
     position: 'absolute',
+    overflow: 'visible',
   },
 
   pillIconLayer: {
@@ -353,19 +338,5 @@ const styles = StyleSheet.create({
   slot: {
     alignItems:     'center',
     justifyContent: 'center',
-  },
-
-  homeArea: {
-    position:       'absolute',
-    left:           0,
-    right:          0,
-    alignItems:     'center',
-    justifyContent: 'flex-end',
-  },
-
-  homeBar: {
-    borderRadius:    100,
-    backgroundColor: COLORS.white,
-    opacity:         0.27,
   },
 });

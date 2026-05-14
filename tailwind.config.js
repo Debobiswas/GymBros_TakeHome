@@ -8,14 +8,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary:      '#242c3b',
-        'card-mid':   '#2b3445',
-        'card-deep':  '#1c2130',
-        'sheet-top':  '#353f54',
+        primary:      '#242C3B',
+        'inset-well': '#1D2330',
+        'card-mid':   '#2B3445',
+        'card-deep':  '#1C2130',
+        'sheet-top':  '#353F54',
         'sheet-bot':  '#222834',
+        'detail-sheet-mid': '#22283A',
+        'detail-sheet-bot': '#12171F',
+        'detail-buy-bar-border': 'rgba(255,255,255,0.22)',
         'accent-a':   '#34C8E8',
         'accent-b':   '#4E4AF2',
-        'price-blue': '#3d9cea',
+        'price-blue': '#3D9CEA',
         'text-hi':    'rgba(255,255,255,0.87)',
         'text-lo':    'rgba(255,255,255,0.6)',
         separator:    'rgba(255,255,255,0.08)',

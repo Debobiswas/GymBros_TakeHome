@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,67 +21,89 @@ import type { Product } from '../types';
 
 // ── Figma reference (165pt card width, 390pt baseline) ────────────────────────
 //
-//  Parallelogram path (Rectangle 166 / 167):
-//    Left:  M 0 20 L 165 0 L 165 220 L 0 240  → top-right rises 20pt
-//    Right: M 0 0  L 165 20 L 165 240 L 0 220 → top-left rises 20pt (mirror)
-//    Skew: atan(20/165) ≈ 6.92°
+//  Parallelogram (Rectangle 166 / 167): one bezier path; right column mirrors on x (see CardBackground).
+//
+//  Figma Items 1:67 — hearts share the same inset from the card frame; reference
+//  comps use slightly tighter image padding (larger product) and left-aligned copy.
 //
 //  Content positions (frame-relative, content view starts at SLANT):
 //    Left column  (Items 1, frame 165×235):
 //      imgPadTop = 32 - SLANT(20) = 12   image at frame y=32
 //      imgPadH   = 22                     symmetric padding
-//      textStart = 138 - SLANT(20) = 118  frame 45 at y=138
-//      textZone  = 97                     63 text + 34 paddingBottom to card bottom
-//      shadowW   = 114                    ground shadow node 1:71
+//      textZone  = 97
 //
 //    Right column (Items 3, frame 165×219):
 //      imgPadTop = 22 - SLANT(20) = 2
 //      imgPadH   = 10
-//      textStart = 135 - SLANT(20) = 115
 //      textZone  = 84
-//      shadowW   = 130
+//
+//  Figma Items 1:67 — top-left card: gradient heart + opaque fill; other cards: white heart + glass fill.
+//
+//  CardBackground SVG viewBox is 245pt wide; the path spans x=20–185 (165pt). The canvas
+//  is centered in the column with `left: -40·s`, so the drawable sits ~20·s left of the
+//  column’s geometric center — shift the content layer by `-20·s` so image / text / heart
+//  align with the shape (otherwise they read shifted right / “popping out” past the card).
+const CONTENT_SHIFT_X = 20;
 // ─────────────────────────────────────────────────────────────────────────────
 const DESIGN_W = 165;
 const SLANT    = 20;
 
 const LAYOUT = {
   left: {
-    imgPadH:   22,
-    imgPadTop: 12,
-    textPadL:  18,
-    textPadR:  18,
-    heartTop:  16,
-    heartRight: 16,
-    shadowW:   114,
-    textZone:  97,
+    /** Tighter than raw Figma 22 so the bike/helmet reads slightly larger on device. */
+    imgPadH:    14,
+    imgPadTop:  12,
+    textPadL:   18,
+    textPadR:   18,
+    textZone:   97,
   },
   right: {
-    imgPadH:   10,
-    imgPadTop: 2,
-    textPadL:  10,
-    textPadR:  10,
-    heartTop:  22,
-    heartRight: 16,
-    shadowW:   130,
-    textZone:  84,
+    imgPadH:    6,
+    imgPadTop:  2,
+    textPadL:   10,
+    textPadR:   10,
+    textZone:   84,
   },
 } as const;
 
-// Column gap must match app/index.tsx
-const COL_GAP = 20;
+/** Same on both columns — 24×24 icon, uniform inset from top / right (Figma 1:79). */
+const HEART = { top: 16, right: 16, size: 24 } as const;
+
+/** Figma 1:75 / 1:89 — type sizes at 165pt card width; scale with `s` like paddings */
+const TEXT = {
+  categoryFs: 13,
+  categoryLh: 18,
+  nameFs:     15,
+  nameLh:     22,
+  priceFs:    13,
+  priceLh:    18,
+  stackGap:   4,
+} as const;
 
 interface ProductCardProps {
   product: Product;
   index: number;
   column?: 'left' | 'right';
+  /** 0-based index down the column; only affects left-column fill + heart (first row opaque). */
+  rowInColumn?: number;
+  /** Same as Discover content `cardW` / grid `bandWidth` — drives column width. */
+  bandWidth: number;
   onPress: (product: Product) => void;
 }
 
-export function ProductCard({ product, index, column = 'left', onPress }: ProductCardProps) {
+export function ProductCard({
+  product,
+  index,
+  column = 'left',
+  rowInColumn,
+  bandWidth,
+  onPress,
+}: ProductCardProps) {
   const { width } = useWindowDimensions();
-  const sidePad = Math.max(16, width * 0.05);
-  const colW    = (width - sidePad * 2 - COL_GAP) / 2;
-  const s       = colW / DESIGN_W;
+  const scale  = width / 390;
+  const colGap = 20 * scale;
+  const colW   = (bandWidth - colGap) / 2;
+  const s      = colW / DESIGN_W;
 
   const translateY = useSharedValue(40);
   const opacity    = useSharedValue(0);
@@ -99,6 +121,25 @@ export function ProductCard({ product, index, column = 'left', onPress }: Produc
 
   const L = LAYOUT[column];
 
+  const textStyle = useMemo(() => {
+    const catFs = TEXT.categoryFs * s;
+    const catLh = TEXT.categoryLh * s;
+    const gap = TEXT.stackGap * s;
+    const nameFs = TEXT.nameFs * s;
+    const nameLh = TEXT.nameLh * s;
+    const priceFs = TEXT.priceFs * s;
+    const priceLh = TEXT.priceLh * s;
+    const stackH =
+      catLh + gap + nameLh + gap + priceLh;
+    const padBottom = Math.max(0, L.textZone * s - stackH);
+    return {
+      category: { fontSize: catFs, lineHeight: catLh },
+      name: { fontSize: nameFs, lineHeight: nameLh, marginTop: gap },
+      price: { fontSize: priceFs, lineHeight: priceLh, marginTop: gap },
+      padBottom,
+    };
+  }, [s, L.textZone]);
+
   // Explicit card height from Figma — drives masonry variation
   const cardH    = product.cardHeight * s;
   // Image area = space between content top (SLANT) and text section bottom
@@ -108,76 +149,93 @@ export function ProductCard({ product, index, column = 'left', onPress }: Produc
     ? `$ ${product.price}`
     : `$ ${product.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
+  const isTopLeftOpaque =
+    column === 'left' && (rowInColumn ?? 0) === 0;
+  const cardFillStyle: 'opaque' | 'glass' = isTopLeftOpaque ? 'opaque' : 'glass';
+  const heartVariant = isTopLeftOpaque ? 'gradient' : 'white';
+
   return (
-    <Animated.View style={[animStyle, { height: cardH, marginBottom: 0 }]}>
+    <Animated.View style={[animStyle, { height: cardH, marginBottom: 0, overflow: 'visible' }]}>
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => onPress(product)}
-        style={{ flex: 1 }}
+        style={{ flex: 1, overflow: 'visible' }}
       >
         {/* ── 1: SVG rounded-parallelogram background (exact Figma bezier path) */}
-        <CardBackground col={column} baseCardH={product.cardHeight} s={s} />
+        <CardBackground
+          col={column}
+          fillStyle={cardFillStyle}
+          baseCardH={product.cardHeight}
+          s={s}
+        />
 
-        {/* ── 2: Content (heart + image + shadow + text) */}
-        <View style={{ position: 'absolute', top: SLANT * s, left: 0, right: 0, bottom: 0 }}>
+        {/* ── 2: Content (heart + image + text), shifted to match parallelogram interior */}
+        <View
+          style={{
+            position: 'absolute',
+            top:        SLANT * s,
+            left:       0,
+            right:      0,
+            bottom:     0,
+            overflow:   'visible',
+            transform:  [{ translateX: -CONTENT_SHIFT_X * s }],
+          }}
+        >
 
-          {/* Heart icon — Figma: 24×24, top-right of card */}
+          {/* Heart — Figma 1:79 / 1:80: same top-right inset on every card */}
           <View
             style={{
               position: 'absolute',
-              top:   L.heartTop * s,
-              right: L.heartRight * s,
+              top:   HEART.top * s,
+              right: HEART.right * s,
               zIndex: 1,
             }}
           >
-            <HeartOutlineIcon size={24 * s} />
+            <HeartOutlineIcon
+              size={HEART.size * s}
+              variant={heartVariant}
+            />
           </View>
 
-          {/* Product image — fills the imgAreaH zone */}
+          {/* Product image — centered in row; column-specific horizontal padding (Figma). */}
           <View
             style={{
               height:            imgAreaH,
               paddingTop:        L.imgPadTop * s,
               paddingHorizontal: L.imgPadH * s,
+              alignItems:        'center',
+              overflow:          'visible',
             }}
           >
             <Image
               source={{ uri: product.image }}
-              style={{ flex: 1 }}
+              style={{ width: '100%', height: '100%' }}
               resizeMode="contain"
-            />
-
-            {/* Ground contact shadow — Figma node 1:71: 114×5.94pt oval beneath bike image */}
-            <View
-              style={{
-                position:        'absolute',
-                bottom:          4 * s,
-                alignSelf:       'center',
-                width:           L.shadowW * s,
-                height:          6 * s,
-                borderRadius:    100,
-                backgroundColor: 'rgba(10, 14, 20, 0.45)',
-                shadowColor:     '#0a0e14',
-                shadowOffset:    { width: 0, height: 0 },
-                shadowOpacity:   0.5,
-                shadowRadius:    8 * s,
-              }}
             />
           </View>
 
-          {/* Text info */}
+          {/* Text — left-aligned (Figma-style lower band) */}
           <View
             style={{
-              paddingLeft:   L.textPadL * s,
-              paddingRight:  L.textPadR * s,
-              paddingTop:    8 * s,
-              paddingBottom: 12 * s,
-              gap:           2,
+              height:         L.textZone * s,
+              paddingLeft:    L.textPadL * s,
+              paddingRight:   L.textPadR * s,
+              paddingBottom:  textStyle.padBottom,
+              justifyContent: 'flex-start',
+              alignItems:     'flex-start',
             }}
           >
-            <Text style={styles.category}>{product.category}</Text>
-            <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
-            <Text style={styles.price}>{priceStr}</Text>
+            <Text style={[styles.category, textStyle.category, styles.textRow]}>
+              {product.category}
+            </Text>
+            <Text
+              style={[styles.name, textStyle.name, styles.textRow]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {product.name}
+            </Text>
+            <Text style={[styles.price, textStyle.price, styles.textRow]}>{priceStr}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -188,22 +246,22 @@ export function ProductCard({ product, index, column = 'left', onPress }: Produc
 const styles = StyleSheet.create({
   category: {
     fontFamily:    FONT.medium,
-    fontSize:      13,
     color:         COLORS.textLo,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   name: {
     fontFamily:    FONT.bold,
-    fontSize:      15,
     color:         COLORS.white,
     letterSpacing: -0.3,
-    marginTop:     2,
   },
   price: {
     fontFamily:    FONT.medium,
-    fontSize:      13,
     color:         COLORS.textLo,
-    letterSpacing: -0.2,
-    marginTop:     2,
+    letterSpacing: -0.3,
+  },
+  /** Full row width so single-line name ellipsizes correctly when left-aligned. */
+  textRow: {
+    alignSelf:  'stretch',
+    textAlign:  'left',
   },
 });

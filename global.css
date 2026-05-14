@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Expo Web: let RN root fill the viewport so screens aren’t short with a gap below */
+html,
+body {
+  height: 100%;
+}

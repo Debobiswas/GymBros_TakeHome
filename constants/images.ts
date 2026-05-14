@@ -63,10 +63,6 @@ export const IMAGES = {
     'https://www.figma.com/api/mcp/asset/64c0bf76-f9a0-407b-9834-39f516de6f26',
   chevronRight:
     'https://www.figma.com/api/mcp/asset/a124ebd9-d1b8-428f-91e9-497fb281c91c',
-  minusIcon:
-    'https://www.figma.com/api/mcp/asset/9589b6a5-e4a6-4bc0-b529-69782764280c',
-  plusIcon:
-    'https://www.figma.com/api/mcp/asset/5d03296d-de40-4baa-af8a-711e7289467c',
 
   // Dot indicators for Detail image carousel
   dotActive:

@@ -9,3 +9,6 @@ export { ElectricCategoryIcon } from './ElectricCategoryIcon';
 export { AccessoryCategoryIcon } from './AccessoryCategoryIcon';
 export { SearchIcon } from './SearchIcon';
 export { HeartOutlineIcon } from './HeartOutlineIcon';
+export { MinusIcon } from './MinusIcon';
+export { PlusIcon } from './PlusIcon';
+export { ChevronForwardIcon } from './ChevronForwardIcon';
